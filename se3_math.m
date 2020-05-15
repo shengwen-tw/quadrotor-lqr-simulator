@@ -21,13 +21,49 @@ classdef se3_math
 		dcm = [dcm11 dcm12 dcm13;
 		       dcm21 dcm22 dcm23;
 		       dcm31 dcm32 dcm33;];
-	end
-
+    end
+    
 	function euler = dcm_to_euler(obj, R)
 		euler = [atan2(R(3, 2), R(3, 3));
 			 asin(-R(3, 1));
 			 atan2(R(2, 1), R(1, 1))];
-	end
+    end
+    
+    function dcm = quaternion_to_dcm(obj, q0, q1, q2, q3)
+        %read: https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+        q1q1 = q1 * q1;
+        q2q2 = q2 * q2;
+        q3q3 = q3 * q3;
+        q1q2 = q1 * q2;
+        q0q2 = q0 * q2;
+        q0q3 = q0 * q3;
+        q1q3 = q1 * q3;
+        q2q3 = q2 * q3;
+        q0q1 = q0 * q1;
+
+        dcm11 = 1.0 - 2.0 * (q2q2 + q3q3);
+        dcm12 = 2.0 * (q1q2 - q0q3);
+        dcm13 = 2.0 * (q0q2 + q1q3);
+        dcm21 = 2.0 * (q1q2 + q0q3);
+        dcm22 = 1.0 - 2.0 * (q1q1 + q3q3);
+        dcm23 = 2.0 * (q2q3 - q0q1);
+        dcm31 = 2.0 * (q1q3 - q0q2);
+        dcm32 = 2.0 * (q0q1 + q2q3);
+        dcm33 = 1.0 - 2.0 * (q1q1 + q2q2);
+        
+        dcm = [dcm11 dcm12 dcm13;
+		       dcm21 dcm22 dcm23;
+		       dcm31 dcm32 dcm33;];
+    end
+    
+    function quat = dcm_to_quaternion(obj, R)
+        q1 = sqrt(0.25 * (1 + R(1, 1) - R(2, 2) - R(3, 3)));
+        div_4q1 = 1.0 / (4.0 * q1);
+        q2 = (R(2, 1) + R(1, 2)) * div_4q1;
+        q3 = (R(3, 1) + R(1, 3)) * div_4q1;
+        q0 = (R(2, 3) - R(3, 2)) * -div_4q1;
+        quat = [q0; q1; q2; q3];
+    end
 
 	function vec = vee_map_3x3(obj, mat)
 		vec=[mat(3, 2);

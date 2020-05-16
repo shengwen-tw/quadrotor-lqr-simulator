@@ -1,5 +1,5 @@
 function quadrotor_sim
-	ITERATION_TIMES = 20000;
+	ITERATION_TIMES = 10000;
 
 	math = se3_math;
 
@@ -26,12 +26,38 @@ function quadrotor_sim
 
 	quad_sim_greeting(uav_dynamics, ITERATION_TIMES, init_attitude);
 
-	%controller gains
-	kx = [7.0; 7.0; 7.0];
-	kv = [3.0; 3.0; 3.0];
-	kR = [10; 10; 10];
-	kW = [2; 2; 2];
+	%lqr parameters
+    Q = zeros(10, 10);
+    Q(1, 1) = 1;   %px
+    Q(2, 2) = 1;   %py
+    Q(3, 3) = 1;   %pz
+    Q(4, 4) = 1;   %q0
+    Q(5, 5) = 1;   %q1
+    Q(6, 6) = 1;   %q2
+    Q(7, 7) = 1;   %q3
+    Q(8, 8) = 1;   %vx
+    Q(9, 9) = 1;   %vy
+    Q(10, 10) = 1; %vz
+    
+    R = zeros(4, 4);
+    R(1, 1) = 1; %wx
+    R(2, 2) = 1; %wy
+    R(3, 3) = 1; %wz
+    R(4, 4) = 1; %c
 
+    %full state feedback control gain
+    K_full_state_fb = zeros(10);
+    K_full_state_fb(1) = 1;   %px
+    K_full_state_fb(2) = 1;   %py
+    K_full_state_fb(3) = 1;   %pz
+    K_full_state_fb(4) = 1;   %q0
+    K_full_state_fb(5) = 1;   %q1
+    K_full_state_fb(6) = 1;   %q2
+    K_full_state_fb(7) = 1;   %q3
+    K_full_state_fb(8) = 1;   %vx
+    K_full_state_fb(9) = 1;   %vy
+    K_full_state_fb(10) = 1;  %vz
+    
 	%controller setpoints	
 	xd = zeros(3, ITERATION_TIMES);
 	vd = zeros(3, ITERATION_TIMES);
@@ -97,76 +123,87 @@ function quadrotor_sim
 		% Quadrotor LQR Control %
 		%%%%%%%%%%%%%%%%%%%%%%%%%
         
-		%tracking erros
-		ex(1) = uav_dynamics.x(1) - xd(1, i);
-		ex(2) = uav_dynamics.x(2) - xd(2, i);
-		ex(3) = uav_dynamics.x(3) - xd(3, i);
-		ev(1) = uav_dynamics.v(1) - vd(1, i);
-		ev(2) = uav_dynamics.v(2) - vd(2, i);
-		ev(3) = uav_dynamics.v(3) - vd(3, i);
+		%construct system state vecoctor
+        x = [uav_dynamics.x; q; uav_dynamics.v];
 
-		%calculate thrust for quadrotor
-		e3 = [0; 0; 1];
-		%calculate the thrust vector on inertial frame [e1; e2; e3]
-		f_n = [0; 0; 0];
-		f_n(1) = -(-kx(1)*ex(1) - kv(1)*ev(1) - uav_dynamics.mass*uav_dynamics.g*e3(1) + uav_dynamics.mass*a_d(1));
-		f_n(2) = -(-kx(2)*ex(2) - kv(2)*ev(2) - uav_dynamics.mass*uav_dynamics.g*e3(2) + uav_dynamics.mass*a_d(2));
-		f_n(3) = -(-kx(3)*ex(3) - kv(3)*ev(3) - uav_dynamics.mass*uav_dynamics.g*e3(3) + uav_dynamics.mass*a_d(3));
+        %construct A matrix
+        dpdot_dv = eye(3);
+        
+        q_norm = norm(q);
+        v= (q_norm^-1) * ([1; 1; 1; 1] - (q_norm^-2)*q* transpose(q));
+        
+        wx = uav_dynamics.W(1);
+        wy = uav_dynamics.W(2);
+        wz = uav_dynamics.W(3);
+        W = [0  -wx -wy -wz;
+             wx  0   wz -wy;
+             wy -wz   0  wx;
+             wz  wy -wx  0];
+        dqdot_dq = 0.5 * W * v;
+        
+        qw = q(1);
+        qx = q(2);
+        qy = q(3);
+        qz = q(4);
+        
+        c= 1; %FIXME
+        Q = [ qy  qz  qw qx;
+             -qx -qw  qz qy;
+              qw -qx -qy qz];
+        dvdot_dq = 2 * c * Q * v;
+        
+        A = [zeros(3, 3) zeros(3 ,4) dpdot_dv;
+             zeros(4, 3) dqdot_dq    zeros(4, 3);
+             zeros(3, 3) dvdot_dq    zeros(3, 3)];
+        
+        %construct B matrix
+        dqdot_dw = 0.5 * [-qx -qy -qz;
+                           qw -qz -qy;
+                           qz  qw  qx;
+                          -qy  qx  qw];
+        
+        dvdot_dc = [qw*qy + qx*qz;
+                    qy*qz - qw*qx;
+                    qw^2 - qx^2 - qy^2 + qz^2];
+        
+        B = [zeros(3, 3)  zeros(3, 1);
+                dqdot_dw  zeros(4, 1);
+             zeros(3, 3)  dvdot_dc];
+        
+        %construct desired state vector
+        p_d = [0; 0; 0];    %desired position
+        q_d = [1; 0; 0; 0]; %desired attitude quaternion
+        v_d = [0; 0; 0];    %desired velocity
+        x_d = [p_d; q_d; v_d];
+         
+        %lqr control
+        %C = eye(10); %measurement matrix is identical, every states are measurable
+        %H = transpose(C) * Q * C;
+        %[X, L, G] = care(A, B, H, R);
+        %K_lqr = inv(R) * transpose(B) * X;
+        %u = -K_lqr*(x-x_d);
+        
+        %full state feedback control
+        u = -K_full_state_fb*(x-x_d);
 
-		%calculate desired dcm
-		b1d = [cos(yaw_d(i)); sin(yaw_d(i)); 0];
-		b3d = [0; 0; 0];
-		b3d(1) = f_n(1) / norm(f_n);
-		b3d(2) = f_n(2) / norm(f_n);
-		b3d(3) = f_n(3) / norm(f_n);
-		b2d = cross(b3d, b1d);
-		b1d_proj = cross(b2d, b3d);
-		Rd = [b1d_proj b2d b3d];
-		%disp(Rd);
-		%disp(det(Rd))
-
-		f_total = dot(f_n, Rd * e3); %quadrotor total thrust on body frame
-		
-		%attitude manual control input
-		%desired_roll = deg2rad(30);
-		%desired_pitch = deg2rad(10);
-		%desired_yaw = deg2rad(35);
-		%Rd = math.euler_to_dcm(desired_roll, desired_pitch, desired_yaw);
-
-		Rt = uav_dynamics.R';
-		Rdt = Rd';
-		I = eye(3);
-
-		%attitude errors expressed in principle rotation angle
-		eR_prv = 0.5 * trace(I - Rdt*uav_dynamics.R);
-
-		%attitude errors
-		eR = 0.5 * math.vee_map_3x3((Rd'*uav_dynamics.R - Rt*Rd));
-		eW = uav_dynamics.W - Rt*Rd*Wd;
-
-		%control output: moment
-		WJW = cross(uav_dynamics.W, uav_dynamics.J * uav_dynamics.W);
-		M_feedfoward = WJW - uav_dynamics.J*(math.hat_map_3x3(uav_dynamics.W)*Rt*Rd*Wd - Rt*Rd*W_dot_d);
-
-		uav_ctrl_M = [-kR(1)*eR(1) - kW(1)*eW(1) + M_feedfoward(1);
-			      -kR(2)*eR(2) - kW(2)*eW(2) + M_feedfoward(2);
-			      -kR(3)*eR(3) - kW(3)*eW(3) + M_feedfoward(3)];
-
-		%control output: force
-		uav_ctrl_f = f_total * uav_dynamics.R * e3;
+        uav_ctrl_M = [u(1); u(2); u(3)];
+        uav_ctrl_f = c * uav_dynamics.R * [0; 0; 1];
 
 		%feed
-		uav_dynamics.M = uav_ctrl_M;
-		uav_dynamics.f = uav_ctrl_f;
-
+		uav_dynamics.M = 0; %uav_ctrl_M;
+		uav_dynamics.f = 0; %uav_ctrl_f;
+        
+		%attitude errors expressed in principle rotation angle
+		eR_prv = 0; %0.5 * trace(I - Rdt*uav_dynamics.R);
+        
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		% Record datas for plotting %
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		time_arr(i) = i * uav_dynamics.dt;
 		time_arr(i) = i * uav_dynamics.dt;
 		eR_prv_arr(:, i) = rad2deg(eR_prv);
-		eR_arr(:, i) = rad2deg(eR);
-		eW_arr(:, i) = rad2deg(eW);
+		eR_arr(:, i) = 0; %rad2deg(eR);
+		eW_arr(:, i) = 0; %rad2deg(eW);
 		accel_arr(:, i) = uav_dynamics.a;
 		vel_arr.g(:, i) = uav_dynamics.v;
 		pos_arr(:, i) = uav_dynamics.x;
@@ -175,14 +212,14 @@ function quadrotor_sim
 		W_dot_arr(:, i) = rad2deg(uav_dynamics.W_dot);
 		W_arr(:, i) = rad2deg(uav_dynamics.W);
 		M_arr(:, i) = uav_dynamics.M;
-		ex_arr(:, i) = ex;
-		ev_arr(:, i) = ev;
+		ex_arr(:, i) = 0; %ex;
+		ev_arr(:, i) = 0; %ev;
 	end
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% Animate the simulation result %
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	rigidbody_visualize([7; 7; 7], pos_arr, R_arr, ITERATION_TIMES, uav_dynamics.dt, 30);
+	%rigidbody_visualize([7; 7; 7], pos_arr, R_arr, ITERATION_TIMES, uav_dynamics.dt, 30);
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%          Plot          %

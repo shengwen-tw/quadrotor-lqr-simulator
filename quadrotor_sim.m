@@ -28,8 +28,8 @@ function quadrotor_sim
 
 	%lqr parameters
     Q = zeros(12, 12);
-    Q(1, 1) = 1; %roll
-    Q(2, 2) = 1; %pitch
+    Q(1, 1) = 5; %roll
+    Q(2, 2) = 5; %pitch
     Q(3, 3) = 1; %yaw
     Q(4, 4) = 5; %roll rate
     Q(5, 5) = 5; %pitch rate
@@ -37,9 +37,9 @@ function quadrotor_sim
     Q(7, 7) = 1; %vx
     Q(8, 8) = 1; %vy
     Q(9, 9) = 1; %vz
-    Q(10, 10) = 100; %x
-    Q(11, 11) = 100; %y
-    Q(12, 12) = 100; %z
+    Q(10, 10) = 5; %x
+    Q(11, 11) = 5; %y
+    Q(12, 12) = 70; %z
     
     R = zeros(4, 4);
     R(1, 1) = 0.1; %f
@@ -125,18 +125,18 @@ function quadrotor_sim
          0  0 0 0 0 0 0 0 1 0 0 0];
     
     %construct B matrix
-    B = [ 0  0   0   0;
-          0  0   0   0;
-          0  0   0   0;
-          0 1/Ix 0   0;
-          0  0  1/Iy 0;
-          0  0   0  1/Iz;
-          0  0   0   0;
-          0  0   0   0;
-         1/m 0   0   0;
-          0  0   0   0;
-          0  0   0   0;
-          0  0   0   0];
+    B = [ 0   0   0   0;
+          0   0   0   0;
+          0   0   0   0;
+          0  1/Ix 0   0;
+          0   0  1/Iy 0;
+          0   0   0  1/Iz;
+          0   0   0   0;
+          0   0   0   0;
+         -1/m 0   0   0;
+          0   0   0   0;
+          0   0   0   0;
+          0   0   0   0];
     
     %solve CARE
     [X, L, G] = care(A, B, Q, R);
@@ -164,13 +164,13 @@ function quadrotor_sim
              uav_dynamics.W(3);
              uav_dynamics.v(1);
              uav_dynamics.v(2);
-             -uav_dynamics.v(3);
+             uav_dynamics.v(3);
              uav_dynamics.x(1);
              uav_dynamics.x(2);
-             -uav_dynamics.x(3)];
+             uav_dynamics.x(3)];
          
         %control setpoint vector
-        x0 = [deg2rad(0); deg2rad(0); deg2rad(0); 0; 0; 0; 0; 0; 0; 0; 0; 10];
+        x0 = [deg2rad(0); deg2rad(0); deg2rad(0); 0; 0; 0; 0; 0; 0; 1; 1; -10];
 
         %control feedforward vector
         u0 = [m*g; 0; 0; 0];
@@ -178,7 +178,7 @@ function quadrotor_sim
         %control vector
         u = -K*[x-x0];
         
-        uav_ctrl_f = uav_dynamics.R * [0; 0; u(1)] + [0; 0; m*g];
+        uav_ctrl_f = uav_dynamics.R * [0; 0; u(1)] + [0; 0; -m*g];
         uav_ctrl_M = [u(2); u(3); u(4)];
         
 		%feed

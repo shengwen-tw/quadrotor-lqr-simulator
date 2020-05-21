@@ -63,7 +63,7 @@ function quadrotor_sim
 	%%%%%%%%%%%%%%%%%%%%%
 	% cirular motion
 	radius = 3;        %[m]
-	circum_rate = 0.25; %[hz], times of finished a circular trajectory per second
+	circum_rate = 0.5; %[hz], times of finished a circular trajectory per second
 	yaw_rate = 0.05;    %[hz], times of full rotation around z axis per second
 	for i = 1: ITERATION_TIMES
 		%plan heading
@@ -170,7 +170,7 @@ function quadrotor_sim
              uav_dynamics.x(3)];
          
         %control setpoint vector
-        x0 = [deg2rad(0); deg2rad(0); deg2rad(0); 0; 0; 0; 0; 0; 0; 1; 1; -10];
+        x0 = [deg2rad(0); deg2rad(0); deg2rad(0); 0; 0; 0; 0; 0; 0; xd(1, i); xd(2, i); xd(3, i)];
 
         %control feedforward vector
         u0 = [m*g; 0; 0; 0];
@@ -208,7 +208,7 @@ function quadrotor_sim
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% Animate the simulation result %
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	%rigidbody_visualize([7; 7; 7], pos_arr, R_arr, ITERATION_TIMES, uav_dynamics.dt, 30);
+	rigidbody_visualize([7; 7; 7], pos_arr, R_arr, ITERATION_TIMES, uav_dynamics.dt, 30);
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%          Plot          %

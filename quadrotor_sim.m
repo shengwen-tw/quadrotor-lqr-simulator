@@ -1,5 +1,5 @@
 function quadrotor_sim
-ITERATION_TIMES = 10000;
+ITERATION_TIMES = 6000;
 
 math = se3_math;
 
@@ -37,9 +37,9 @@ Q(6, 6) = 5;      %yaw rate
 Q(7, 7) = 1;      %vx
 Q(8, 8) = 1;      %vy
 Q(9, 9) = 1;      %vz
-Q(10, 10) = 10;   %x
-Q(11, 11) = 10;   %y
-Q(12, 12) = 2000; %z
+Q(10, 10) = 5;   %x
+Q(11, 11) = 5;   %y
+Q(12, 12) = 100; %z
 
 R = zeros(4, 4);
 R(1, 1) = 0.1;    %f
@@ -141,10 +141,59 @@ for i = 1: ITERATION_TIMES
     % Quadrotor LQR Control %
     %%%%%%%%%%%%%%%%%%%%%%%%%
     
-    %construct state vector
     eulers = math.dcm_to_euler(uav_dynamics.R); %get euler angles from R matrix
     v_b = uav_dynamics.R * uav_dynamics.v;      %get body frame velocity
     
+    p = uav_dynamics.W(1);
+    q = uav_dynamics.W(2);
+    r = uav_dynamics.W(3);
+    u = v_b(1);
+    v = v_b(2);
+    w = v_b(3);
+    
+    %construct A matrix
+    s_phi = sin(eulers(1));
+    c_phi = cos(eulers(1));
+    s_theta = sin(eulers(2));
+    c_theta = cos(eulers(2));
+    s_psi = sin(eulers(3));
+    c_psi = cos(eulers(3));
+    t_theta = tan(eulers(2));
+    sec_theta = sec(eulers(2));
+    
+    if true
+    a1 = [-r*s_phi*t_theta + q*c_phi*t_theta ...
+          r*(c_phi*sec_theta^2 + q*s_phi*sec_theta^2) ...
+          0 1 s_phi*t_theta c_phi*t_theta 0 0 0 0 0 0];
+    a2 = [(-q*s_phi - r*c_phi) 0 0 0 c_phi -s_phi 0 0 0 0 0 0];
+    a3 = [-r*s_phi/c_theta + q*c_phi/c_theta ...
+          r*c_phi*sec_theta*t_theta + q*s_phi*sec_theta*t_theta ...
+          0 0 s_phi/c_theta c_phi/c_theta 0 0 0 0 0 0];
+    a4 = [0 0 0 0 (Iy-Iz)/Ix*r (Iy-Iz)/Ix*q 0 0 0 0 0 0];
+    a5 = [0 0 0 (Iz-Ix)/Iy*r 0 (Iz-Ix)/Iy*p 0 0 0 0 0 0];
+    a6 = [0 0 0 (Ix-Iy)/Iz*q (Ix-Iy)/Iz*p 0 0 0 0 0 0 0];
+    a7 = [0 -g*c_theta 0 0 -w v 0 r -q 0 0 0];
+    a8 = [g*c_phi*c_theta -g*s_phi*s_theta 0 w 0 -u -r 0 p 0 0 0];
+    a9 = [-g*c_theta*s_phi -g*s_theta*c_phi 0 -v u 0 q -p 0 0 0 0];
+    a10 = [w*(c_phi*s_psi - s_phi*c_psi*s_theta) + v*(s_phi*s_psi + c_psi*c_phi*s_theta) ...
+           w*(c_phi*c_psi*c_theta) + v*(c_psi*s_phi*c_theta) - u*(c_psi*s_theta) ...
+           w*(s_phi*c_psi - c_phi*s_psi*s_theta) - v*(c_phi*c_psi + s_psi*s_phi*s_theta) - u*(s_psi*c_theta) ...
+           0 0 0 c_psi*c_theta (-c_phi*s_psi + c_psi*s_phi*s_theta) (s_phi*s_psi + c_phi*c_psi*s_theta) 0 0 0];
+    a11 = [v*(-s_phi*c_psi + c_phi*s_psi*s_theta) - w*(c_psi*c_phi + s_phi*s_psi*s_theta) ...
+           v*(s_phi*s_psi*c_theta) + w*(c_phi*s_psi*c_theta) - u*(s_theta*s_psi) ...
+           v*(-c_phi*s_psi + s_phi*c_psi*s_theta) + w*(s_psi*s_phi + c_phi*c_psi*s_theta) + u*(c_theta*c_psi) ...
+           0 0 0 c_theta*s_psi (c_phi*c_psi + s_phi*s_psi*s_theta) (-c_psi*s_phi + c_phi*s_psi*s_theta) 0 0 0];
+    a12 = [-w*s_phi*c_theta + v*c_theta*c_phi ...
+           -w*c_phi*s_theta - u*c_theta - v*s_theta*s_phi ...
+           0 0 0 0 -s_theta c_theta*s_phi c_phi*c_theta 0 0 0];
+    A = [a1; a2; a3; a4; a5; a6; a7; a8; a9; a10; a11; a12];
+
+    X = care_sda(A, B, H, R);
+    K = inv(R) * transpose(B) * X;
+    disp(i);
+    end
+    
+    %construct state vector
     x = [eulers(1);
          eulers(2);
          eulers(3);

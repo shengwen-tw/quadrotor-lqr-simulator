@@ -36,11 +36,11 @@ while 1
     H_hat_last = H_Hat_new;
     
     %stop iteration if converged
-    if abs(norm_H_now - norm_H_last) < 0.01
+    if abs(norm_H_now - norm_H_last) < 0.000000001 %* abs(norm_H_now)
         break;
     end
     
-    %disp(abs(norm_H_now - norm_H_last));
+    %disp(iteration_times);
 end
 
 X = H_Hat_new;

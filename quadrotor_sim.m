@@ -28,17 +28,17 @@ quad_sim_greeting(uav_dynamics, ITERATION_TIMES, init_attitude);
 
 %lqr parameters
 Q = zeros(12, 12);
-Q(1, 1) = 20;    %roll
-Q(2, 2) = 20;    %pitch
-Q(3, 3) = 20;    %yaw
+Q(1, 1) = 20;     %roll
+Q(2, 2) = 20;     %pitch
+Q(3, 3) = 20;     %yaw
 Q(4, 4) = 5;      %roll rate
 Q(5, 5) = 5;      %pitch rate
 Q(6, 6) = 5;      %yaw rate
-Q(7, 7) = 1;      %vx
-Q(8, 8) = 1;      %vy
-Q(9, 9) = 1;      %vz
-Q(10, 10) = 50;   %x
-Q(11, 11) = 50;   %y
+Q(7, 7) = 200;    %vx
+Q(8, 8) = 200;    %vy
+Q(9, 9) = 200;    %vz
+Q(10, 10) = 5000; %x
+Q(11, 11) = 5000; %y
 Q(12, 12) = 1000; %z
 
 R = zeros(4, 4);
@@ -191,7 +191,7 @@ for i = 1: ITERATION_TIMES
     a9 = [-g*c_theta*s_phi -g*s_theta*c_phi 0 -v u 0 q -p 0 0 0 0];
     a10 = [w*(c_phi*s_psi - s_phi*c_psi*s_theta) + v*(s_phi*s_psi + c_psi*c_phi*s_theta) ...
            w*(c_phi*c_psi*c_theta) + v*(c_psi*s_phi*c_theta) - u*(c_psi*s_theta) ...
-           w*(s_phi*c_psi - c_phi*s_psi*s_theta) - v*(c_phi*c_psi + s_psi*s_phi*s_theta) - u*(s_psi*c_theta) ...
+           w*(s_phi*c_psi - c_phi*s_psi*s_theta) - v*(c_phi*c_psi - c_phi*c_psi*s_theta) + u*(c_theta*c_psi) ...
            0 0 0 c_psi*c_theta (-c_phi*s_psi + c_psi*s_phi*s_theta) (s_phi*s_psi + c_phi*c_psi*s_theta) 0 0 0];
     a11 = [v*(-s_phi*c_psi + c_phi*s_psi*s_theta) - w*(c_psi*c_phi + s_phi*s_psi*s_theta) ...
            v*(s_phi*s_psi*c_theta) + w*(c_phi*s_psi*c_theta) - u*(s_theta*s_psi) ...
@@ -255,11 +255,17 @@ for i = 1: ITERATION_TIMES
           xd(2, i);   %desired y position
           xd(3, i)];  %desired z position
     
-    %calculate feedback control vector
-    %u0 = [-m*g; 0; 0; 0];
-    u = (-K * [x - x0]) ;%+ u0;
+    %calculate feedforward control
+    gravity_ff = dot(uav_dynamics.mass .* g .* [0; 0; 1], uav_dynamics.R * [0; 0; 1]);
+    u_ff = [gravity_ff; 0; 0; 0];
     
-    lqr_f = uav_dynamics.R * [0; 0; u(1)] + [0; 0; -m*g];
+    %calculate feedback control
+    u_fb = -K * [x - x0];
+    
+    %obtain complete control input
+    u = u_ff + u_fb;
+    
+    lqr_f = uav_dynamics.R * [0; 0; u(1)];
     lqr_M = [u(2); u(3); u(4)];
     
     %feed control to uav dynamics

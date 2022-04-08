@@ -7,7 +7,7 @@ uav_dynamics = dynamics;        %create uav dynamics object
 uav_dynamics.dt = 0.001;        %set iteration period [sec]
 uav_dynamics.mass = 1;          %set uav mass [kg]
 uav_dynamics.a = [0; 0; 0];     %acceleration of uav [m/s^2], effected by applied force
-uav_dynamics.v = [0; 0; 0];     %initial velocity of uav [m/s]
+uav_dynamics.v = [0; 0.5; 0];   %initial velocity of uav [m/s]
 uav_dynamics.x = [0.5; 0; 0];   %initial position of uav [m]
 uav_dynamics.W = [0; 0; 0];     %initial angular velocity of uav
 uav_dynamics.W_dot = [0; 0; 0]; %angular acceleration of uav, effected by applied moment
@@ -28,21 +28,21 @@ quad_sim_greeting(uav_dynamics, ITERATION_TIMES, init_attitude);
 
 %lqr parameters
 Q = zeros(12, 12);
-Q(1, 1) = 20;     %roll
-Q(2, 2) = 20;     %pitch
-Q(3, 3) = 20;     %yaw
-Q(4, 4) = 5;      %roll rate
-Q(5, 5) = 5;      %pitch rate
-Q(6, 6) = 5;      %yaw rate
-Q(7, 7) = 200;    %vx
-Q(8, 8) = 200;    %vy
-Q(9, 9) = 200;    %vz
-Q(10, 10) = 5000; %x
-Q(11, 11) = 5000; %y
-Q(12, 12) = 1000; %z
+Q(1, 1) = 300;     %roll
+Q(2, 2) = 300;     %pitch
+Q(3, 3) = 750;     %yaw
+Q(4, 4) = 10;      %roll rate
+Q(5, 5) = 10;      %pitch rate
+Q(6, 6) = 10;      %yaw rate
+Q(7, 7) = 900;    %vx
+Q(8, 8) = 900;    %vy
+Q(9, 9) = 900;    %vz
+Q(10, 10) = 2500; %x
+Q(11, 11) = 2500; %y
+Q(12, 12) = 3000; %z
 
 R = zeros(4, 4);
-R(1, 1) = 0.1;    %f
+R(1, 1) = 1;    %f
 R(2, 2) = 1;      %wx
 R(3, 3) = 1;      %wy
 R(4, 4) = 1;      %wz
@@ -144,8 +144,12 @@ W_arr = zeros(3, ITERATION_TIMES);
 M_arr = zeros(3, ITERATION_TIMES);
 
 G = B*inv(R)*transpose(B);
+
+progress_tok = waitbar(0, 'Starting');
 for i = 1: ITERATION_TIMES
     %disp(i);
+    prompt = sprintf('Progress: %d %%\n(%d/%d)', floor(i/ITERATION_TIMES*100), i, ITERATION_TIMES);
+    waitbar(i/ITERATION_TIMES, progress_tok, prompt);
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%
     % Update System Dynamics %
@@ -210,9 +214,9 @@ for i = 1: ITERATION_TIMES
     sda_x_norm = norm(At*X + X*A - X*G*X + H);
     
     tstart = tic();
-    [X, L, G_dummy] = care(A, B, H, R);
+    [X_, L, G_dummy] = care(A, B, H, R);
     matlab_time = toc(tstart);
-    matlab_x_norm = norm(At*X + X*A - X*G*X + H);
+    matlab_x_norm = norm(At*X_ + X_*A - X_*G*X_ + H);
 
     speed_inc = matlab_time / sda_time;
     
@@ -383,6 +387,7 @@ ylabel('CARE norm');
 disp("Press any key to leave");
 pause;
 close all;
+delete(progress_tok);
 end
 
 function quad_sim_greeting(dynamics, iteration_times, init_attitude)

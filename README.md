@@ -1,4 +1,4 @@
-# quadrotor LQR controller simulator
+# Quadrotor Linear Quadratic Regulator Simulator
 
 A state-dependent LQR controller simulator for quadrotor written in MATLAB.
 

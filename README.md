@@ -1,5 +1,7 @@
 # Quadrotor Linear Quadratic Regulator Simulator
 
+> Check our Python implementation here: https://github.com/shengwen-tw/rotor-bench 
+
 A state-dependent LQR controller simulator for quadrotor written in MATLAB.
 
 This project is featured with **Structure-preserving Doubling Algorithm** for solving optimal control gain, which is **5.1** times faster than MATLAB built-in function.
